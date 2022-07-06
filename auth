@@ -1,0 +1,65 @@
+#!/bin/sh
+shcat() {
+  while read -r p || [ "$p" ]; do
+    printf '%s\n' "$p"
+  done
+}
+case "$1" in
+  gen)
+    [ -e ./authkeys ] && {
+      . ./authkeys
+      [ "$CLID" ] && shcat << EOF
+Please empty/delete ./authkeys to continue
+EOF
+exit 1
+    }
+    [ "$2" ] && {
+      GEN=$(curl -X POST -d client_name=fedish -d redirect_uris="urn:ietf:wg:oauth:2.0:oob" -d scopes='read write follow push' -Ls "$2/api/v1/apps")
+      CLID="${GEN##*client_id?:?}"; CLID="${CLID%%?,*}"
+      CLSEC="${GEN##*client_secret?:?}"; CLSEC="${CLSEC%%?,*}"
+      [ "$DEBUG" ] && printf '%s\n%s\nJSON: %s\n' "$CLID" "$CLSEC" "$GEN" >&2
+      shcat << EOF > ./authkeys
+CLID=$CLID
+CLSEC=$CLSEC
+URL=$2
+EOF
+      shcat << EOF
+Please navigate to 
+${2}/oauth/authorize?client_id=${CLID}&scope=read+write+follow+push&redirect_uri=urn:ietf:wg:oauth:2.0:oob&response_type=code
+And input the code into './auth auth TOKEN' (Where TOKEN is the code)
+EOF
+      exit 0
+    } || {
+      shcat << EOF ; exit 1
+Please specify a url..
+ie './auth gen https://disqordia.space/'
+EOF
+    } ;; 
+  auth) 
+    [ "$2" ] && {
+      [ -e ./authkeys -a ! $REKEY ] && {
+        . ./authkeys
+        KEYJ=$(curl -X POST -L "$URL/oauth/token/" -H "Content-Type: application/x-www-form-urlencoded" --data-urlencode "client_id=$CLID" --data-urlencode "client_secret=$CLSEC" --data-urlencode "redirect_uri=urn:ietf:wg:oauth:2.0:oob" --data-urlencode "code=$2" --data-urlencode "grant_type=authorization_code" --data-urlencode "scope=read+write+follow+push")
+        KEY="${KEYJ##*refresh_token?:?}"; KEY="${KEY%%?,*}"
+        [ "$DEBUG" ] && printf '%s\nJSON: %s\n' "$KEY" "$KEYJ" >&2
+        printf 'REKEY=%s\n' "$KEY" >> ./authkeys 
+        shcat << EOF; exit 0
+Done.
+./authkeys made; move to desired location
+EOF
+      } || {
+        shcat << 'EOF'; exit 1
+Please run './auth gen INSTANCE_URL' (Where INSTANCE_URL is the URL of your instance)
+EOF
+      }
+    } || {
+      shcat << 'EOF'; exit 1
+Please specify an auth token
+EOF
+    } ;;
+  "")
+    shcat << 'EOF'; exit 1
+Please specify an action..
+ie './auth gen/auth <...>'
+EOF
+esac

@@ -1,0 +1,18 @@
+---
+fauth
+-- auth lib for fedi in 99% pure sh
+---
+Usage
+-- ./auth gen "instance_url"
+---- generates client codes and an auth link
+-- ./auth auth "token"
+---- uses token given from link to request auth keys
+-- data saved to ./authkeys; can then be used as $AUTHFILE
+---
+Redirect URI
+-- fauth uses urn:ietf:wg:oauth:2.0:oob
+-- where fedish used a handmade webapp
+-- this change has been made as sometimes CORS blocks the redirect
+-- whereas using urn:ietf:wg:oauth:2.0:oob doesn't have this issue
+-- and additionally prevents the need of a webapp
+---
